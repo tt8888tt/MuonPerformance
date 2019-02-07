@@ -120,7 +120,6 @@ private:
   TH1D* h_inPhi[MAXCHAMBERS][MAXLAYERS];
   TH1D* h_inErrX[MAXCHAMBERS][MAXLAYERS][MAXROLL];
   TH1D* h_inErrY[MAXCHAMBERS][MAXLAYERS][MAXROLL];
-  TH2D* h_inLocPos[MAXCHAMBERS][MAXLAYERS];
 
   TH1D* h_hitErrX[MAXCHAMBERS][MAXLAYERS][MAXROLL];
   TH1D* h_hitErrY[MAXCHAMBERS][MAXLAYERS][MAXROLL];
@@ -130,10 +129,6 @@ private:
   TH2D* h_hitStripPerRoll[MAXCHAMBERS][MAXLAYERS];
   TH2D* h_hitPos[MAXCHAMBERS][MAXLAYERS];
   TH1D* h_hitNstrip[MAXCHAMBERS][MAXLAYERS][MAXROLL];
-  TH2D* h_hitNstrip_violin[MAXCHAMBERS][MAXLAYERS];
-  TH2D* h_hitNstrip_perX_violin[MAXCHAMBERS][MAXLAYERS];
-  TH2D* h_hitNstrip_perPhi[MAXCHAMBERS][MAXLAYERS][MAXROLL];
-  TH2D* h_hitNstrip_perX[MAXCHAMBERS][MAXLAYERS][MAXROLL];
   TH1D* h_resX_etaPart[MAXCHAMBERS][MAXLAYERS][MAXROLL];
   TH1D* h_resY_etaPart[MAXCHAMBERS][MAXLAYERS][MAXROLL];
   TH1D* h_resPhi_etaPart[MAXCHAMBERS][MAXLAYERS][MAXROLL];
@@ -150,16 +145,11 @@ private:
   TH1D* h_muon_pt_matched[MAXCHAMBERS][MAXLAYERS];
   TH1D* h_inStrip_matched[MAXCHAMBERS][MAXLAYERS];
   TH2D* h_inPos_matched[MAXCHAMBERS][MAXLAYERS];
-  TH2D* h_inLocPos_matched[MAXCHAMBERS][MAXLAYERS];
   TH1D* h_inPhi_matched[MAXCHAMBERS][MAXLAYERS];
   TH2D* h_inPhiVsHitPhi[MAXCHAMBERS][MAXLAYERS];
   TH2D* h_inXVsHitX[MAXCHAMBERS][MAXLAYERS];
   TH2D* h_inStripVsHitStrip[MAXCHAMBERS][MAXLAYERS];
   TH2D* h_inPhiVsHitStrip[MAXCHAMBERS][MAXLAYERS];
-
-  float sectorHights_even[8] = {194.2, 195.05, 161.07, 161.07, 134.56, 134.56, 113.07, 113.22};
-  float sectorHights_odd[8] = {166.144, 166.55, 140.57, 140.57, 119.57, 119.57, 102.06, 101.81};
-  float errY[8] = {0.9404082107145119, 0.7305402309914274, 0.6162735366835065, 0.5294699678881126, 0.41028316155208994, 0.33301271444478, 0.29380622583917454, 0.2615063056790299};
 
   int nEvents;
   int b_event, b_run, b_lumi;
@@ -215,24 +205,18 @@ SliceTestEfficiencyAnalysis::SliceTestEfficiencyAnalysis(const edm::ParameterSet
       h_inStripPerRoll[ichamber][ilayer] = fs->make<TH2D>(Form("inStripPerRoll ch %i lay %i",ichamber, ilayer+1),"inStripPerRoll",384,0,384,8,0.5,8.5);
       h_inPos[ichamber][ilayer] = fs->make<TH2D>(Form("inPos ch %i lay %i",ichamber, ilayer+1),"inPos",100,-70,120,100,-260,-110);
       h_inPhi[ichamber][ilayer] = fs->make<TH1D>(Form("inPhi ch %i lay %i",ichamber, ilayer+1),"inPhi",44,-1.8352,-1.1318);
-      h_inLocPos[ichamber][ilayer] = fs->make<TH2D>(Form("inLocPos ch %i lay %i",ichamber, ilayer+1),"inLocPos",100,-25,25,100,-5,125);
-      h_inLocPos_matched[ichamber][ilayer] = fs->make<TH2D>(Form("inLocPos_matched ch %i lay %i",ichamber, ilayer+1),"inLocPos_matched",100,-25,25,100,-5,125);
 
       h_hitRoll[ichamber][ilayer] = fs->make<TH1D>(Form("hitRoll ch %i lay %i",ichamber, ilayer+1),"hitRoll",8,0.5,8.5);
       h_hitStrip[ichamber][ilayer] = fs->make<TH1D>(Form("hitStrip ch %i lay %i",ichamber, ilayer+1),"hitStrip",384,0,384);
       h_hitVfat[ichamber][ilayer] = fs->make<TH2D>(Form("hitVfat ch %i lay %i",ichamber, ilayer+1),"hitVfat",3,0.5,3.5,8,0.5,8.5);
       h_hitStripPerRoll[ichamber][ilayer] = fs->make<TH2D>(Form("hitStripPerRoll ch %i lay %i",ichamber, ilayer+1),"hitStripPerRoll",384,0,384,8,0.5,8.5);
       h_hitPos[ichamber][ilayer] = fs->make<TH2D>(Form("hitPos ch %i lay %i",ichamber, ilayer+1),"hitPos",100,-70,120,100,-260,-110);
-      h_hitNstrip_violin[ichamber][ilayer] = fs->make<TH2D>(Form("hitNstrip_violin ch %i lay %i",ichamber, ilayer+1),"hitNstrip_violin",8,0.5,8.5,5,0,5);
-      h_hitNstrip_perX_violin[ichamber][ilayer] = fs->make<TH2D>(Form("hitNstrip_perX_violin ch %i lay %i",ichamber, ilayer+1),"hitNstrip_perX_violin",50,-15,15,5,0,5);
       for (int ieta=0; ieta<MAXROLL;++ieta) {
         h_hitErrX[ichamber][ilayer][ieta] = fs->make<TH1D>(Form("hitErrX ch %i lay %i ieta %i",ichamber, ilayer+1, ieta),"hitErrX",100,0,1.5);
         h_hitErrY[ichamber][ilayer][ieta] = fs->make<TH1D>(Form("hitErrY ch %i lay %i ieta %i",ichamber, ilayer+1, ieta),"hitErrY",100,0,1.5);
         h_inErrX[ichamber][ilayer][ieta] = fs->make<TH1D>(Form("inErrX ch %i lay %i ieta %i",ichamber, ilayer+1, ieta),"inErrX",100,0,1.5);
         h_inErrY[ichamber][ilayer][ieta] = fs->make<TH1D>(Form("inErrY ch %i lay %i ieta %i",ichamber, ilayer+1, ieta),"inErrY",100,0,2);
         h_hitNstrip[ichamber][ilayer][ieta] = fs->make<TH1D>(Form("hitNstrip ch %i lay %i ieta %i",ichamber, ilayer+1, ieta),"hitNstrip",10,0,10);
-        h_hitNstrip_perPhi[ichamber][ilayer][ieta] = fs->make<TH2D>(Form("hitNstrip_perPhi ch %i lay %i ieta %i",ichamber, ilayer+1, ieta),"hitNstrip_perPhi",50,-1.9,-1.0,10,0,10);
-        h_hitNstrip_perX[ichamber][ilayer][ieta] = fs->make<TH2D>(Form("hitNstrip_perX ch %i lay %i ieta %i",ichamber, ilayer+1, ieta),"hitNstrip_perX",50,-15,15,10,0,10);
         h_resX_etaPart[ichamber][ilayer][ieta] = fs->make<TH1D>(Form("resX_etaPart ch %i lay %i ieta %i",ichamber, ilayer+1, ieta),"resX",500,-3,3);
         h_resY_etaPart[ichamber][ilayer][ieta] = fs->make<TH1D>(Form("resY_etaPart ch %i lay %i ieta %i",ichamber, ilayer+1, ieta),"resY",500,-15,15);
         h_resPhi_etaPart[ichamber][ilayer][ieta] = fs->make<TH1D>(Form("resPhi_etaPart ch %i lay %i ieta %i",ichamber, ilayer+1, ieta),"resPhi",500,-0.03,0.03);
@@ -322,7 +306,6 @@ SliceTestEfficiencyAnalysis::analyze(const edm::Event& iEvent, const edm::EventS
     }
   }
 
-  vector<float> invariantMass;
   for (auto & mu : *muons) {
 
     if (!mu.passed(reco::Muon::CutBasedIdTight)) continue;
@@ -372,18 +355,9 @@ SliceTestEfficiencyAnalysis::analyze(const edm::Event& iEvent, const edm::EventS
 	  h_inStripPerRoll[gemid.chamber()][gemid.layer()-1]->Fill(strip, gemid.roll());
 	  h_inPos[gemid.chamber()][gemid.layer()-1]->Fill(tsosGP.x(), tsosGP.y());
 	  h_inMap->Fill(gemid.chamber()+gemid.layer()/2., gemid.roll());
-	  if (gemid.roll() >2) h_inPhi[gemid.chamber()][gemid.layer()-1]->Fill(tsosGP.phi());
+	  h_inPhi[gemid.chamber()][gemid.layer()-1]->Fill(tsosGP.phi());
       h_inErrX[gemid.chamber()][gemid.layer()-1][gemid.roll()-1]->Fill(tsos.localError().positionError().xx());
       h_inErrY[gemid.chamber()][gemid.layer()-1][gemid.roll()-1]->Fill(tsos.localError().positionError().yy());
-
-      float* arrHeights;
-      if ( gemid.chamber()%2 ) arrHeights = sectorHights_odd;
-      else arrHeights = sectorHights_even;
-
-      float height = 0;
-      height += (arrHeights[gemid.roll()-1]/10.)/2.;
-      for (int i=7; i>(gemid.roll()-1); i--) height += *(arrHeights+i)/10.;
-	  h_inLocPos[gemid.chamber()][gemid.layer()-1]->Fill(locPos.x(), locPos.y()+height);
 
       auto matchedHit = findMatchedHit(gemRecHits.product(), gemid, shiftedlocPos);
 
@@ -446,14 +420,13 @@ SliceTestEfficiencyAnalysis::analyze(const edm::Event& iEvent, const edm::EventS
 
 	  h_muon_pt_matched[gemid.chamber()][gemid.layer()-1]->Fill(mu.pt());
 	  h_inStrip_matched[gemid.chamber()][gemid.layer()-1]->Fill(strip);
-	  if (gemid.roll() >2) h_inPhi_matched[gemid.chamber()][gemid.layer()-1]->Fill(tsosGP.phi());
+	  h_inPhi_matched[gemid.chamber()][gemid.layer()-1]->Fill(tsosGP.phi());
 	  h_inPos_matched[gemid.chamber()][gemid.layer()-1]->Fill(tsosGP.x(), tsosGP.y());
-	  h_inLocPos_matched[gemid.chamber()][gemid.layer()-1]->Fill(locPos.x(), locPos.y()+height);
     }
 
     if (onGEMChamber && getInvariantMass(mu)) physicsEvent = true;
   }
-  //if ( physicsEvent ) cout << "physics!: " << b_event << "  " << invariantMass[0] << "  " << b_nGEMHits << endl;
+  //if ( physicsEvent ) cout << "physics!: " << b_event << "  " << b_nGEMHits << endl;
   t_event->Fill();
 }
 
