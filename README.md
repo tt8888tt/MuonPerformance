@@ -8,3 +8,14 @@ git cms-merge-topic jshlee:muonIso-10x
 git clone git@github.com:jshlee/MuonPerformance.git
 scram b -j 20
 ```
+
+# For Slice Test Analysis
+```
+scram p -n sliceTest CMSSW CMSSW_10_3_0_pre4
+cd sliceTest/src
+cmsenv
+git cms-init -q
+git cms-merge-topic jshlee:gem-vfatv3b
+git clone git@github.com:CPLUOS/MuonPerformance.git
+scram b -j 20
+```
