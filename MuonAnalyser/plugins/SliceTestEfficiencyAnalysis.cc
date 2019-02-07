@@ -26,6 +26,10 @@
 #include "TrackPropagation/SteppingHelixPropagator/interface/SteppingHelixPropagator.h"
 #include "MagneticField/Engine/interface/MagneticField.h"
 
+#include "DataFormats/GEMDigi/interface/GEMAMCdataCollection.h"
+#include "DataFormats/GEMDigi/interface/GEMGEBdataCollection.h"
+#include "DataFormats/GEMDigi/interface/GEMVfatStatusDigiCollection.h"
+
 #include "DataFormats/PatCandidates/interface/Muon.h"
 #include "DataFormats/VertexReco/interface/Vertex.h"
 #include "DataFormats/VertexReco/interface/VertexFwd.h"
@@ -37,11 +41,10 @@
 #include "Geometry/Records/interface/MuonGeometryRecord.h"
 #include "Geometry/CommonDetUnit/interface/GeomDet.h"
 #include "Geometry/CommonTopologies/interface/StripTopology.h"
+#include "Geometry/CommonTopologies/interface/TrapezoidalStripTopology.h"
 
 #include "Geometry/Records/interface/MuonGeometryRecord.h"
 #include "DataFormats/Math/interface/deltaPhi.h"
-#include "DataFormats/MuonData/interface/MuonDigiCollection.h"
-#include "DataFormats/GEMDigi/interface/GEMAMCStatusDigi.h"
 
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/Run.h"
@@ -72,15 +75,23 @@ private:
   virtual void endRun(Run const&, EventSetup const&) override;
 
   const GEMEtaPartition* findEtaPartition(const GEMChamber*& chamber, GlobalPoint& tsosGP);
+  bool checkEtaPartitionGood(const GEMEtaPartition* part, int amcBx);
+  bool getInvariantMass(const reco::Muon mu);
+  const GEMRecHit* findMatchedHit(const GEMRecHitCollection* gemRecHits, GEMDetId gemid, LocalPoint locPos);
 
   // ----------member data ---------------------------
   edm::EDGetTokenT<GEMRecHitCollection> gemRecHits_;
   edm::EDGetTokenT<edm::View<reco::Muon> > muons_;
-  edm::EDGetTokenT<reco::VertexCollection> vertexCollection_;
-  //edm::EDGetTokenT<MuonDigiCollection<unsigned short,GEMAMCStatusDigi>> gemDigis_;
-  edm::Service<TFileService> fs;
+  //edm::EDGetTokenT<reco::TrackCollection> muons_;
+  edm::EDGetTokenT<GEMAMCdataCollection> amcData_;
+  edm::EDGetTokenT<GEMGEBdataCollection> gebStatusCol_;
+  edm::EDGetTokenT<GEMVfatStatusDigiCollection> vfatStatusCol_;
+  double minPt; bool fiducialCut; bool amcBxCut;
 
-  double Latency_;
+  edm::Handle<GEMAMCdataCollection> amcData;
+  edm::Handle<GEMGEBdataCollection> gebStatusCol;
+  edm::Handle<GEMVfatStatusDigiCollection> vfatStatusCol;
+  edm::Service<TFileService> fs;
 
   MuonServiceProxy* theService_;
   edm::ESHandle<Propagator> propagator_;
@@ -96,44 +107,70 @@ private:
   TH1D* h_nGEMHitInMuontrack;
   TH2D* h_inMap;
   TH2D* h_hitMap;
-  
+
   TH2D* h_hitLumiMap[MAXCHAMBERS][MAXLAYERS];
   TH2D* h_stripLumiMap[MAXCHAMBERS][MAXLAYERS];
+
+  TH1D* h_muon_pt[MAXCHAMBERS][MAXLAYERS];
   TH1D* h_inRoll[MAXCHAMBERS][MAXLAYERS];
   TH1D* h_inStrip[MAXCHAMBERS][MAXLAYERS];
   TH2D* h_inVfat[MAXCHAMBERS][MAXLAYERS];
+  TH2D* h_inStripPerRoll[MAXCHAMBERS][MAXLAYERS];
   TH2D* h_inPos[MAXCHAMBERS][MAXLAYERS];
+  TH1D* h_inPhi[MAXCHAMBERS][MAXLAYERS];
+  TH1D* h_inErrX[MAXCHAMBERS][MAXLAYERS][MAXROLL];
+  TH1D* h_inErrY[MAXCHAMBERS][MAXLAYERS][MAXROLL];
+  TH2D* h_inLocPos[MAXCHAMBERS][MAXLAYERS];
 
+  TH1D* h_hitErrX[MAXCHAMBERS][MAXLAYERS][MAXROLL];
+  TH1D* h_hitErrY[MAXCHAMBERS][MAXLAYERS][MAXROLL];
   TH1D* h_hitRoll[MAXCHAMBERS][MAXLAYERS];
   TH1D* h_hitStrip[MAXCHAMBERS][MAXLAYERS];
   TH2D* h_hitVfat[MAXCHAMBERS][MAXLAYERS];
+  TH2D* h_hitStripPerRoll[MAXCHAMBERS][MAXLAYERS];
   TH2D* h_hitPos[MAXCHAMBERS][MAXLAYERS];
   TH1D* h_hitNstrip[MAXCHAMBERS][MAXLAYERS][MAXROLL];
+  TH2D* h_hitNstrip_violin[MAXCHAMBERS][MAXLAYERS];
+  TH2D* h_hitNstrip_perX_violin[MAXCHAMBERS][MAXLAYERS];
+  TH2D* h_hitNstrip_perPhi[MAXCHAMBERS][MAXLAYERS][MAXROLL];
+  TH2D* h_hitNstrip_perX[MAXCHAMBERS][MAXLAYERS][MAXROLL];
   TH1D* h_resX_etaPart[MAXCHAMBERS][MAXLAYERS][MAXROLL];
   TH1D* h_resY_etaPart[MAXCHAMBERS][MAXLAYERS][MAXROLL];
   TH1D* h_resPhi_etaPart[MAXCHAMBERS][MAXLAYERS][MAXROLL];
-  TH1D* h_resX_xPart[MAXCHAMBERS][MAXLAYERS][3];
-  TH1D* h_resY_xPart[MAXCHAMBERS][MAXLAYERS][3];
-  TH1D* h_resPhi_xPart[MAXCHAMBERS][MAXLAYERS][3];
+  TH1D* h_pullX_etaPart[MAXCHAMBERS][MAXLAYERS][MAXROLL];
+  TH1D* h_pullY_etaPart[MAXCHAMBERS][MAXLAYERS][MAXROLL];
 
   TH1D* h_resX[MAXCHAMBERS][MAXLAYERS];
   TH1D* h_resY[MAXCHAMBERS][MAXLAYERS];
+  TH1D* h_resZ[MAXCHAMBERS][MAXLAYERS];
   TH1D* h_resPhi[MAXCHAMBERS][MAXLAYERS];
   TH2D* h_resXvsNstrip[MAXCHAMBERS][MAXLAYERS];
   TH1D* h_pullX[MAXCHAMBERS][MAXLAYERS];
   TH1D* h_pullY[MAXCHAMBERS][MAXLAYERS];
+  TH1D* h_muon_pt_matched[MAXCHAMBERS][MAXLAYERS];
+  TH1D* h_inStrip_matched[MAXCHAMBERS][MAXLAYERS];
   TH2D* h_inPos_matched[MAXCHAMBERS][MAXLAYERS];
+  TH2D* h_inLocPos_matched[MAXCHAMBERS][MAXLAYERS];
+  TH1D* h_inPhi_matched[MAXCHAMBERS][MAXLAYERS];
   TH2D* h_inPhiVsHitPhi[MAXCHAMBERS][MAXLAYERS];
   TH2D* h_inXVsHitX[MAXCHAMBERS][MAXLAYERS];
   TH2D* h_inStripVsHitStrip[MAXCHAMBERS][MAXLAYERS];
   TH2D* h_inPhiVsHitStrip[MAXCHAMBERS][MAXLAYERS];
 
-  int b_run, b_lumi;
+  float sectorHights_even[8] = {194.2, 195.05, 161.07, 161.07, 134.56, 134.56, 113.07, 113.22};
+  float sectorHights_odd[8] = {166.144, 166.55, 140.57, 140.57, 119.57, 119.57, 102.06, 101.81};
+  float errY[8] = {0.9404082107145119, 0.7305402309914274, 0.6162735366835065, 0.5294699678881126, 0.41028316155208994, 0.33301271444478, 0.29380622583917454, 0.2615063056790299};
+
   int nEvents;
+  int b_event, b_run, b_lumi;
   int b_nMuons, b_nMuonsInGEMRegion, b_nGEMHits;
   int b_latency;
-  
+
+  bool physicsEvent;
+
   TTree *t_event;
+  edm::Handle<View<reco::Muon> > muons;
+  //edm::Handle<reco::TrackCollection> muons;
 };
 
 SliceTestEfficiencyAnalysis::SliceTestEfficiencyAnalysis(const edm::ParameterSet& iConfig) :
@@ -141,53 +178,78 @@ SliceTestEfficiencyAnalysis::SliceTestEfficiencyAnalysis(const edm::ParameterSet
 { 
   gemRecHits_ = consumes<GEMRecHitCollection>(iConfig.getParameter<edm::InputTag>("gemRecHits"));
   muons_ = consumes<View<reco::Muon> >(iConfig.getParameter<InputTag>("muons"));
+  //muons_ = consumes<reco::TrackCollection>(iConfig.getParameter<InputTag>("muons"));
+  amcData_ = consumes<GEMAMCdataCollection>(iConfig.getParameter<edm::InputTag>("amcData"));
+  gebStatusCol_ = consumes<GEMGEBdataCollection>(iConfig.getParameter<edm::InputTag>("gebStatusCol"));
+  vfatStatusCol_ = consumes<GEMVfatStatusDigiCollection>(iConfig.getParameter<edm::InputTag>("vfatStatusCol"));
+
+  minPt = iConfig.getParameter<double>("minPt");
+  fiducialCut = iConfig.getParameter<bool>("fiducialCut");
+  amcBxCut = iConfig.getParameter<bool>("amcBxCut");
+
   edm::ParameterSet serviceParameters = iConfig.getParameter<edm::ParameterSet>("ServiceParameters");
-  //gemDigis_ = consumes<MuonDigiCollection<unsigned short,GEMAMCStatusDigi>>(iConfig.getParameter<edm::InputTag>("gemDigis"));
   theService_ = new MuonServiceProxy(serviceParameters);
-  Latency_ = iConfig.getParameter<double>("latency");
 
   t_event = fs->make<TTree>("Event", "Event");
   t_event->Branch("nMuons", &b_nMuons, "nMuons/I");
   t_event->Branch("nMuonsInGEMRegion", &b_nMuonsInGEMRegion, "nMuonsInGEMRegion/I");
   t_event->Branch("nGEMHits", &b_nGEMHits, "nGEMHits/I");
+  t_event->Branch("event", &b_event, "event/I");
   t_event->Branch("run", &b_run, "run/I");
   t_event->Branch("lumi", &b_lumi, "lumi/I");
   t_event->Branch("latency", &b_latency, "latency/I");
 
-  h_nGEMHitInMuontrack = fs->make<TH1D>(Form("nGEMHitInMuontrack"),"nGEMHitInMuontrack",4,0,4);
-  h_inMap = fs->make<TH2D>(Form("inMap"),"inMap",18,26.5,31,18,0,9);
-  h_hitMap = fs->make<TH2D>(Form("hitMap"),"hitMap",18,26.5,31,18,0,9);
+  h_nGEMHitInMuontrack = fs->make<TH1D>("nGEMHitInMuontrack","nGEMHitInMuontrack",4,0,4);
+  h_inMap = fs->make<TH2D>("inMap","inMap",18,26.5,31,18,0,9);
+  h_hitMap = fs->make<TH2D>("hitMap","hitMap",18,26.5,31,18,0,9);
+
+  Double_t ptbins[] = {0.,10.,20.,30.,40.,50.,60.,70.,80.,90.,100.,120.,140.,200.};
   for (int ichamber=27; ichamber<=30;++ichamber) {
     for (int ilayer=0; ilayer<MAXLAYERS;++ilayer) {
+     h_muon_pt[ichamber][ilayer] = fs->make<TH1D>(Form("pt ch %i lay %i",ichamber, ilayer+1),"pt",size(ptbins)-1, ptbins);
       h_hitLumiMap[ichamber][ilayer] = fs->make<TH2D>(Form("hitLumiMap ch %i lay %i",ichamber, ilayer+1),"hitLumiMap",700,0,700,32,1,9);
       h_stripLumiMap[ichamber][ilayer] = fs->make<TH2D>(Form("stripLumiMap ch %i lay %i",ichamber, ilayer+1),"stripLumiMap",700,0,700,400,0,400);
       h_inRoll[ichamber][ilayer] = fs->make<TH1D>(Form("inRoll ch %i lay %i",ichamber, ilayer+1),"inRoll",8,0.5,8.5);
-      h_inStrip[ichamber][ilayer] = fs->make<TH1D>(Form("inStrip ch %i lay %i",ichamber, ilayer+1),"inStrip",384,0,384);
+      h_inStrip[ichamber][ilayer] = fs->make<TH1D>(Form("inStrip ch %i lay %i",ichamber, ilayer+1),"inStrip",24,0,384);
       h_inVfat[ichamber][ilayer] = fs->make<TH2D>(Form("inVfat ch %i lay %i",ichamber, ilayer+1),"inVfat",3,0.5,3.5,8,0.5,8.5);
+      h_inStripPerRoll[ichamber][ilayer] = fs->make<TH2D>(Form("inStripPerRoll ch %i lay %i",ichamber, ilayer+1),"inStripPerRoll",384,0,384,8,0.5,8.5);
       h_inPos[ichamber][ilayer] = fs->make<TH2D>(Form("inPos ch %i lay %i",ichamber, ilayer+1),"inPos",100,-70,120,100,-260,-110);
+      h_inPhi[ichamber][ilayer] = fs->make<TH1D>(Form("inPhi ch %i lay %i",ichamber, ilayer+1),"inPhi",44,-1.8352,-1.1318);
+      h_inLocPos[ichamber][ilayer] = fs->make<TH2D>(Form("inLocPos ch %i lay %i",ichamber, ilayer+1),"inLocPos",100,-25,25,100,-5,125);
+      h_inLocPos_matched[ichamber][ilayer] = fs->make<TH2D>(Form("inLocPos_matched ch %i lay %i",ichamber, ilayer+1),"inLocPos_matched",100,-25,25,100,-5,125);
 
       h_hitRoll[ichamber][ilayer] = fs->make<TH1D>(Form("hitRoll ch %i lay %i",ichamber, ilayer+1),"hitRoll",8,0.5,8.5);
       h_hitStrip[ichamber][ilayer] = fs->make<TH1D>(Form("hitStrip ch %i lay %i",ichamber, ilayer+1),"hitStrip",384,0,384);
       h_hitVfat[ichamber][ilayer] = fs->make<TH2D>(Form("hitVfat ch %i lay %i",ichamber, ilayer+1),"hitVfat",3,0.5,3.5,8,0.5,8.5);
+      h_hitStripPerRoll[ichamber][ilayer] = fs->make<TH2D>(Form("hitStripPerRoll ch %i lay %i",ichamber, ilayer+1),"hitStripPerRoll",384,0,384,8,0.5,8.5);
       h_hitPos[ichamber][ilayer] = fs->make<TH2D>(Form("hitPos ch %i lay %i",ichamber, ilayer+1),"hitPos",100,-70,120,100,-260,-110);
+      h_hitNstrip_violin[ichamber][ilayer] = fs->make<TH2D>(Form("hitNstrip_violin ch %i lay %i",ichamber, ilayer+1),"hitNstrip_violin",8,0.5,8.5,5,0,5);
+      h_hitNstrip_perX_violin[ichamber][ilayer] = fs->make<TH2D>(Form("hitNstrip_perX_violin ch %i lay %i",ichamber, ilayer+1),"hitNstrip_perX_violin",50,-15,15,5,0,5);
       for (int ieta=0; ieta<MAXROLL;++ieta) {
-        h_hitNstrip[ichamber][ilayer][ieta] = fs->make<TH1D>(Form("hitNstrip ch %i lay %i ieta %i",ichamber, ilayer+1, ieta),"hitNstrip",30,0,30);
+        h_hitErrX[ichamber][ilayer][ieta] = fs->make<TH1D>(Form("hitErrX ch %i lay %i ieta %i",ichamber, ilayer+1, ieta),"hitErrX",100,0,1.5);
+        h_hitErrY[ichamber][ilayer][ieta] = fs->make<TH1D>(Form("hitErrY ch %i lay %i ieta %i",ichamber, ilayer+1, ieta),"hitErrY",100,0,1.5);
+        h_inErrX[ichamber][ilayer][ieta] = fs->make<TH1D>(Form("inErrX ch %i lay %i ieta %i",ichamber, ilayer+1, ieta),"inErrX",100,0,1.5);
+        h_inErrY[ichamber][ilayer][ieta] = fs->make<TH1D>(Form("inErrY ch %i lay %i ieta %i",ichamber, ilayer+1, ieta),"inErrY",100,0,2);
+        h_hitNstrip[ichamber][ilayer][ieta] = fs->make<TH1D>(Form("hitNstrip ch %i lay %i ieta %i",ichamber, ilayer+1, ieta),"hitNstrip",10,0,10);
+        h_hitNstrip_perPhi[ichamber][ilayer][ieta] = fs->make<TH2D>(Form("hitNstrip_perPhi ch %i lay %i ieta %i",ichamber, ilayer+1, ieta),"hitNstrip_perPhi",50,-1.9,-1.0,10,0,10);
+        h_hitNstrip_perX[ichamber][ilayer][ieta] = fs->make<TH2D>(Form("hitNstrip_perX ch %i lay %i ieta %i",ichamber, ilayer+1, ieta),"hitNstrip_perX",50,-15,15,10,0,10);
         h_resX_etaPart[ichamber][ilayer][ieta] = fs->make<TH1D>(Form("resX_etaPart ch %i lay %i ieta %i",ichamber, ilayer+1, ieta),"resX",500,-3,3);
         h_resY_etaPart[ichamber][ilayer][ieta] = fs->make<TH1D>(Form("resY_etaPart ch %i lay %i ieta %i",ichamber, ilayer+1, ieta),"resY",500,-15,15);
         h_resPhi_etaPart[ichamber][ilayer][ieta] = fs->make<TH1D>(Form("resPhi_etaPart ch %i lay %i ieta %i",ichamber, ilayer+1, ieta),"resPhi",500,-0.03,0.03);
-      }
-      for (int xrange=0; xrange<3;++xrange) {
-        h_resX_xPart[ichamber][ilayer][xrange] = fs->make<TH1D>(Form("resX_xPart ch %i lay %i xrange %i",ichamber, ilayer+1, xrange),"resX",500,-3,3);
-        h_resY_xPart[ichamber][ilayer][xrange] = fs->make<TH1D>(Form("resY_xPart ch %i lay %i xrange %i",ichamber, ilayer+1, xrange),"resY",500,-15,15);
-        h_resPhi_xPart[ichamber][ilayer][xrange] = fs->make<TH1D>(Form("resPhi_xPart ch %i lay %i xrange %i",ichamber, ilayer+1, xrange),"resPhi",500,-0.03,0.03);
+        h_pullX_etaPart[ichamber][ilayer][ieta] = fs->make<TH1D>(Form("pullX_etaPart ch %i lay %i ieta %i",ichamber, ilayer+1, ieta),"pullX",500,-3,3);
+        h_pullY_etaPart[ichamber][ilayer][ieta] = fs->make<TH1D>(Form("pullY_etaPart ch %i lay %i ieta %i",ichamber, ilayer+1, ieta),"pullY",500,-15,15);
       }
 
       h_resX[ichamber][ilayer] = fs->make<TH1D>(Form("resX ch %i lay %i",ichamber, ilayer+1),"resX",500,-3,3);
       h_resY[ichamber][ilayer] = fs->make<TH1D>(Form("resY ch %i lay %i",ichamber, ilayer+1),"resY",500,-15,15);
+      h_resZ[ichamber][ilayer] = fs->make<TH1D>(Form("resZ ch %i lay %i",ichamber, ilayer+1),"resZ",500,-1,1);
       h_resPhi[ichamber][ilayer] = fs->make<TH1D>(Form("resPhi ch %i lay %i",ichamber, ilayer+1),"resPhi",500,-0.03,0.03);
       h_resXvsNstrip[ichamber][ilayer] = fs->make<TH2D>(Form("resXvsNstrip ch %i lay %i",ichamber, ilayer+1),"resXvsNstrip",250,-3,3,15,0,15);
       h_pullX[ichamber][ilayer] = fs->make<TH1D>(Form("pullX ch %i lay %i",ichamber, ilayer+1),"pullX",500,-3,3);
-      h_pullY[ichamber][ilayer] = fs->make<TH1D>(Form("pullY ch %i lay %i",ichamber, ilayer+1),"pullY",500,-3,3);
+      h_pullY[ichamber][ilayer] = fs->make<TH1D>(Form("pullY ch %i lay %i",ichamber, ilayer+1),"pullY",500,-15,15);
+      h_muon_pt_matched[ichamber][ilayer] = fs->make<TH1D>(Form("pt_matched ch %i lay %i",ichamber, ilayer+1),"pt_matched", size(ptbins)-1, ptbins);
+      h_inStrip_matched[ichamber][ilayer] = fs->make<TH1D>(Form("inStrip_matched ch %i lay %i",ichamber, ilayer+1),"inStrip",24,0,384);
+      h_inPhi_matched[ichamber][ilayer] = fs->make<TH1D>(Form("inPhi_matched ch %i lay %i",ichamber, ilayer+1),"inPhi_matched",44,-1.8352,-1.1318); // -1.8352 ~ -1.1318 (0.1745+0.0026) per 1 ch)
       h_inPos_matched[ichamber][ilayer] = fs->make<TH2D>(Form("inPos_matched ch %i lay %i",ichamber, ilayer+1),"inPos",100,-70,120,100,-260,-110);
       h_inPhiVsHitPhi[ichamber][ilayer] = fs->make<TH2D>(Form("inPhiVsHitPhi ch %i lay %i",ichamber, ilayer+1),"inPos",100,-1.9,-1.1,100,-1.9,-1.1);
       h_inXVsHitX[ichamber][ilayer] = fs->make<TH2D>(Form("inXVsHitX ch %i lay %i",ichamber, ilayer+1),"inPos",100,-70,120,100,-70,120);
@@ -197,17 +259,24 @@ SliceTestEfficiencyAnalysis::SliceTestEfficiencyAnalysis(const edm::ParameterSet
   }
 }
 
-SliceTestEfficiencyAnalysis::~SliceTestEfficiencyAnalysis(){}
+SliceTestEfficiencyAnalysis::~SliceTestEfficiencyAnalysis(){
+   //cout << "1. Total prop. points:  " << count1 << endl;
+   //cout << "2. Points on boundary region:  " << count2 << endl;
+   //cout << "3. Points on boundary region (fail matching): " << count3 << endl;
+   //cout << "4. Matched with hit on next eta sector:  " << count4 << endl;
+}
 
 void
 SliceTestEfficiencyAnalysis::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 {
+  physicsEvent = false;
   nEvents++;
 
   b_nMuons = 0;
   b_nMuonsInGEMRegion = 0;
   b_nGEMHits = 0;
   
+  b_event = iEvent.id().event();
   b_run = iEvent.run();
   b_lumi = iEvent.luminosityBlock();
 
@@ -222,26 +291,13 @@ SliceTestEfficiencyAnalysis::analyze(const edm::Event& iEvent, const edm::EventS
   edm::Handle<GEMRecHitCollection> gemRecHits;  
   iEvent.getByToken(gemRecHits_, gemRecHits);
  
-  Handle<View<reco::Muon> > muons;
   iEvent.getByToken(muons_, muons);
 
-  /*
-  edm::Handle<MuonDigiCollection<unsigned short,GEMAMCStatusDigi>> gemDigis;
-  iEvent.getByToken(gemDigis_, gemDigis);
-
-  b_latency = -1;
-  for (auto g : *gemDigis) {
-    for (auto a = g.second.first; a != g.second.second; ++a) {
-      b_latency = a->Param1();
-    }
-  }
-  //if (b_latency != Latency_) return;
-  */
+  iEvent.getByToken(amcData_, amcData);
+  iEvent.getByToken(gebStatusCol_, gebStatusCol);
+  iEvent.getByToken(vfatStatusCol_, vfatStatusCol);
 
   if (b_run != 319347) return;
-  if ( (b_lumi <50)
-     || (b_lumi>210 && b_lumi<240)
-     || (b_lumi>640) ) return;
 
   for (auto ch : GEMGeometry_->chambers()) {
     for(auto roll : ch->etaPartitions()) {
@@ -253,27 +309,28 @@ SliceTestEfficiencyAnalysis::analyze(const edm::Event& iEvent, const edm::EventS
         h_hitLumiMap[rId.chamber()][rId.layer()-1]->Fill(b_lumi,rId.roll()+vfat/4.);
         h_stripLumiMap[rId.chamber()][rId.layer()-1]->Fill(b_lumi,hit->firstClusterStrip());
       }
+      cout << rId.chamber() << "  " << rId.roll() << " : " << roll->pitch() << endl;
     }
   }
-  //if (b_nGEMHits == 0) continue;
+  if (b_nGEMHits == 0) return;
 
-  for (size_t i = 0; i < muons->size(); ++i) {
+  int amcBx = -1;
+  for (GEMAMCdataCollection::DigiRangeIterator amcsIt = amcData->begin(); amcsIt != amcData->end(); ++amcsIt){
+    auto amcs = (*amcsIt).second;
+    for (auto amc = amcs.first; amc != amcs.second; ++amc) {
+      amcBx = amc->bx();
+    }
+  }
 
-    edm::RefToBase<reco::Muon> muRef = muons->refAt(i);
-    const reco::Muon* mu = muRef.get();
+  vector<float> invariantMass;
+  for (auto & mu : *muons) {
 
-    // muon id
-    int muonId = 0;
-    if (mu->passed(reco::Muon::Selector::CutBasedIdTight)) muonId = 2;
-    else if (mu->passed(reco::Muon::Selector::CutBasedIdLoose)) muonId = 1;
+    if (!mu.passed(reco::Muon::CutBasedIdTight)) continue;
+    if (mu.pt() < minPt) continue;
 
-    // tight and pt > 20 muon only
-    if (muonId != 2) continue;
-    if (mu->pt() < 20) continue;
-    
-    const reco::Track* muonTrack = 0;  
-    if ( mu->globalTrack().isNonnull() ) muonTrack = mu->globalTrack().get();
-    else if ( mu->outerTrack().isNonnull()  ) muonTrack = mu->outerTrack().get();
+    const reco::Track* muonTrack = 0;
+    if ( mu.globalTrack().isNonnull() ) muonTrack = mu.globalTrack().get();
+    else if ( mu.outerTrack().isNonnull()  ) muonTrack = mu.outerTrack().get();
     if (!muonTrack) continue;
     b_nMuons++;
 
@@ -285,85 +342,118 @@ SliceTestEfficiencyAnalysis::analyze(const edm::Event& iEvent, const edm::EventS
     }
     h_nGEMHitInMuontrack->Fill(nGEMHitInMuontrack);
 
+    bool onGEMChamber = false;
     reco::TransientTrack ttTrack = ttrackBuilder_->build(muonTrack);
     for (auto chamber : GEMGeometry_->chambers()) {
 	  if (chamber->id().chamber() == 1) continue; // ignore chammber 1
-	  if (mu->eta() * chamber->id().region() < 0 ) continue;
+	  if (mu.eta() * chamber->id().region() < 0 ) continue;
 
 	  TrajectoryStateOnSurface tsos = propagator->propagate(ttTrack.outermostMeasurementState(),
 	  					            chamber->surface());
 	  if (!tsos.isValid()) continue;
 
 	  GlobalPoint tsosGP = tsos.globalPosition();
-      auto etaPart =  findEtaPartition(chamber, tsosGP);
-      if (!etaPart) continue;
+      auto etaPart = findEtaPartition(chamber, tsosGP);
+      if (!etaPart) continue; // no eta partition matched
 
       auto gemid = etaPart->id();
       auto locPos = etaPart->toLocal(tsosGP);
       auto strip = (int) etaPart->strip(locPos);
       auto vfat = ((int) strip/128)+1;
+      auto shiftedlocPos = etaPart->centreOfStrip(strip);
 
+      if (fiducialCut) { if (strip < 20 || strip > 364) continue; }
+      if (amcBxCut) { if (!checkEtaPartitionGood(etaPart, amcBx)) continue; }
+
+	  h_muon_pt[gemid.chamber()][gemid.layer()-1]->Fill(mu.pt());
 	  h_inRoll[gemid.chamber()][gemid.layer()-1]->Fill(gemid.roll());
 	  h_inStrip[gemid.chamber()][gemid.layer()-1]->Fill(strip);
 	  h_inVfat[gemid.chamber()][gemid.layer()-1]->Fill(vfat, gemid.roll());
+	  h_inStripPerRoll[gemid.chamber()][gemid.layer()-1]->Fill(strip, gemid.roll());
 	  h_inPos[gemid.chamber()][gemid.layer()-1]->Fill(tsosGP.x(), tsosGP.y());
 	  h_inMap->Fill(gemid.chamber()+gemid.layer()/2., gemid.roll());
+	  if (gemid.roll() >2) h_inPhi[gemid.chamber()][gemid.layer()-1]->Fill(tsosGP.phi());
+      h_inErrX[gemid.chamber()][gemid.layer()-1][gemid.roll()-1]->Fill(tsos.localError().positionError().xx());
+      h_inErrY[gemid.chamber()][gemid.layer()-1][gemid.roll()-1]->Fill(tsos.localError().positionError().yy());
 
-      //Find hit
-      float resX = 999;
-      GEMRecHit closestHit;
-	  auto recHitsRange = gemRecHits->get(gemid);
-	  for (auto hit = recHitsRange.first; hit != recHitsRange.second; ++hit) {
-	    LocalPoint hitLocPos = hit->localPosition();
-        if ( fabs(hitLocPos.x() - locPos.x()) < fabs(resX) ) {
-          resX = hitLocPos.x() - locPos.x();
-          closestHit = (*hit);
-        }
-	  }
-	  if (resX == 999) continue;
-	  auto hitLocPos = closestHit.localPosition();
+      float* arrHeights;
+      if ( gemid.chamber()%2 ) arrHeights = sectorHights_odd;
+      else arrHeights = sectorHights_even;
+
+      float height = 0;
+      height += (arrHeights[gemid.roll()-1]/10.)/2.;
+      for (int i=7; i>(gemid.roll()-1); i--) height += *(arrHeights+i)/10.;
+	  h_inLocPos[gemid.chamber()][gemid.layer()-1]->Fill(locPos.x(), locPos.y()+height);
+
+      auto matchedHit = findMatchedHit(gemRecHits.product(), gemid, shiftedlocPos);
+
+      // searching near eta sector (boundary)
+      /*
+      if ( !matchedHit ){
+        const TrapezoidalStripTopology* topo_(dynamic_cast<const TrapezoidalStripTopology*>(&(etaPart->topology())));
+        const float stripLength(topo_->stripLength());
+
+        const GEMEtaPartition* nextEtaPart = nullptr;
+        if (gemid.roll() != 1 && (locPos.y()+2) >  stripLength/2.) nextEtaPart = chamber->etaPartition(gemid.roll()+1);
+        if (gemid.roll() != 8 && (locPos.y()-2) < -stripLength/2.) nextEtaPart = chamber->etaPartition(gemid.roll()-1);
+        if (nextEtaPart) matchedHit = findMatchedHit(gemRecHits.product(), nextEtaPart->id(), locPos);
+      }
+      */
+
+      if ( !matchedHit ) continue;
+
+	  auto hitLocPos = matchedHit->localPosition();
       auto hitGlobPos = etaPart->toGlobal(hitLocPos);
-      auto hitStrip = closestHit.firstClusterStrip();
-      auto resY = hitLocPos.y() - locPos.y();
-      auto resPhi = hitGlobPos.phi() - tsosGP.phi();
+      auto hitStrip = matchedHit->firstClusterStrip();
+      auto resX = shiftedlocPos.x() - hitLocPos.x();
+      auto resY = shiftedlocPos.y() - hitLocPos.y();
+      auto resZ = shiftedlocPos.z() - hitLocPos.z();
+      auto resPhi = tsosGP.phi() - hitGlobPos.phi();
 	  h_inPhiVsHitPhi[gemid.chamber()][gemid.layer()-1]->Fill(tsosGP.phi(), hitGlobPos.phi());
 	  h_inXVsHitX[gemid.chamber()][gemid.layer()-1]->Fill(tsosGP.x(), hitGlobPos.x());
 	  h_inStripVsHitStrip[gemid.chamber()][gemid.layer()-1]->Fill(strip, hitStrip);
 	  h_inPhiVsHitStrip[gemid.chamber()][gemid.layer()-1]->Fill(tsosGP.phi(), hitStrip);
 
 	  if (resX > 5.0) continue;
+      onGEMChamber = true;
       LocalError && locErr = tsos.localError().positionError();
-      LocalError && hitLocErr = closestHit.localPositionError();
+      LocalError && hitLocErr = matchedHit->localPositionError();
       auto pullX = resX / std::sqrt(hitLocErr.xx() + locErr.xx());
       auto pullY = resY / std::sqrt(hitLocErr.yy() + locErr.yy());
+      h_hitErrX[gemid.chamber()][gemid.layer()-1][gemid.roll()-1]->Fill(hitLocErr.xx());
+      h_hitErrY[gemid.chamber()][gemid.layer()-1][gemid.roll()-1]->Fill(hitLocErr.yy());
 
       //Filling histograms
       h_hitRoll[gemid.chamber()][gemid.layer()-1]->Fill(gemid.roll());
 	  h_hitStrip[gemid.chamber()][gemid.layer()-1]->Fill(hitStrip);
 	  h_hitVfat[gemid.chamber()][gemid.layer()-1]->Fill(((int)hitStrip/128)+1, gemid.roll());
+	  h_hitStripPerRoll[gemid.chamber()][gemid.layer()-1]->Fill(hitStrip, gemid.roll());
 	  h_hitPos[gemid.chamber()][gemid.layer()-1]->Fill(hitGlobPos.x(), hitGlobPos.y());
-	  h_hitNstrip[gemid.chamber()][gemid.layer()-1][gemid.roll()-1]->Fill(closestHit.clusterSize());
+	  h_hitNstrip[gemid.chamber()][gemid.layer()-1][gemid.roll()-1]->Fill(matchedHit->clusterSize());
 	  h_hitMap->Fill(gemid.chamber()+gemid.layer()/2., gemid.roll());
 
-      int x = 1;
-      if (abs(locPos.x())<10) x = 0;
-      else if (abs(locPos.x())>20) x = 2;
+	  h_resX[gemid.chamber()][gemid.layer()-1]->Fill(resX);
+	  h_resY[gemid.chamber()][gemid.layer()-1]->Fill(resY);
+	  h_resZ[gemid.chamber()][gemid.layer()-1]->Fill(resZ);
+	  h_resPhi[gemid.chamber()][gemid.layer()-1]->Fill(resPhi);
+	  h_pullX[gemid.chamber()][gemid.layer()-1]->Fill(pullX);
+	  h_pullY[gemid.chamber()][gemid.layer()-1]->Fill(pullY);
 	  h_resX_etaPart[gemid.chamber()][gemid.layer()-1][gemid.roll()-1]->Fill(resX);
 	  h_resY_etaPart[gemid.chamber()][gemid.layer()-1][gemid.roll()-1]->Fill(resY);
 	  h_resPhi_etaPart[gemid.chamber()][gemid.layer()-1][gemid.roll()-1]->Fill(resPhi);
-	  h_resX_xPart[gemid.chamber()][gemid.layer()-1][x]->Fill(resX);
-	  h_resY_xPart[gemid.chamber()][gemid.layer()-1][x]->Fill(resY);
-	  h_resPhi_xPart[gemid.chamber()][gemid.layer()-1][x]->Fill(resPhi);
-	  h_resX[gemid.chamber()][gemid.layer()-1]->Fill(resX);
-	  h_resY[gemid.chamber()][gemid.layer()-1]->Fill(resY);
-	  h_resPhi[gemid.chamber()][gemid.layer()-1]->Fill(resPhi);
-	  h_resXvsNstrip[gemid.chamber()][gemid.layer()-1]->Fill(resX,closestHit.clusterSize());
-	  h_pullX[gemid.chamber()][gemid.layer()-1]->Fill(pullX);
-	  h_pullY[gemid.chamber()][gemid.layer()-1]->Fill(pullY);
-	  h_inPos_matched[gemid.chamber()][gemid.layer()-1]->Fill(tsosGP.x(), tsosGP.y());
+	  h_pullX_etaPart[gemid.chamber()][gemid.layer()-1][gemid.roll()-1]->Fill(pullX);
+	  h_pullY_etaPart[gemid.chamber()][gemid.layer()-1][gemid.roll()-1]->Fill(pullY);
 
+	  h_muon_pt_matched[gemid.chamber()][gemid.layer()-1]->Fill(mu.pt());
+	  h_inStrip_matched[gemid.chamber()][gemid.layer()-1]->Fill(strip);
+	  if (gemid.roll() >2) h_inPhi_matched[gemid.chamber()][gemid.layer()-1]->Fill(tsosGP.phi());
+	  h_inPos_matched[gemid.chamber()][gemid.layer()-1]->Fill(tsosGP.x(), tsosGP.y());
+	  h_inLocPos_matched[gemid.chamber()][gemid.layer()-1]->Fill(locPos.x(), locPos.y()+height);
     }
+
+    if (onGEMChamber && getInvariantMass(mu)) physicsEvent = true;
   }
+  //if ( physicsEvent ) cout << "physics!: " << b_event << "  " << invariantMass[0] << "  " << b_nGEMHits << endl;
   t_event->Fill();
 }
 
@@ -376,6 +466,61 @@ const GEMEtaPartition* SliceTestEfficiencyAnalysis::findEtaPartition(const GEMCh
     return etaPart;
   }
   return nullptr;
+}
+
+bool SliceTestEfficiencyAnalysis::checkEtaPartitionGood(const GEMEtaPartition* part, int amcBx)
+{
+  GEMDetId rId = part->id();
+  auto vfats = vfatStatusCol->get(rId);
+  for (auto vfat = vfats.first; vfat != vfats.second; ++vfat) {
+    if (vfat->bc() != amcBx ) return false;
+    if (int(vfat->quality()) != 0 ) return false;
+  }
+  return true;
+}
+
+const GEMRecHit* SliceTestEfficiencyAnalysis::findMatchedHit(const GEMRecHitCollection* gemRecHits, GEMDetId gemid, LocalPoint locPos)
+{
+  float dx = 999;
+  const GEMRecHit* closestHit = nullptr;
+  auto recHitsRange = gemRecHits->get(gemid);
+  for (auto hit = recHitsRange.first; hit != recHitsRange.second; ++hit) {
+    LocalPoint hitLocPos = hit->localPosition();
+    if ( fabs(hitLocPos.x() - locPos.x()) < fabs(dx) ) {
+      dx = hitLocPos.x() - locPos.x();
+      closestHit = &(*hit);
+    }
+  }
+  return closestHit;
+}
+
+//vector<float> SliceTestEfficiencyAnalysis::getInvariantMass(muons, const reco::Muon mu)
+bool SliceTestEfficiencyAnalysis::getInvariantMass(const reco::Muon mu)
+{
+  TLorentzVector mu1tlv;
+  mu1tlv.SetPtEtaPhiM(mu.pt(), mu.eta(), mu.phi(), 0.105658);
+  
+  bool massInRegion = false;
+  for (auto & mu2 : *muons) { // double count?
+      if (&mu == &mu2) continue;
+
+      if (!mu2.passed(reco::Muon::CutBasedIdTight)) continue;
+      if (mu2.pt() < minPt) continue;
+
+      const reco::Track* muonTrack = 0;
+      if ( mu2.globalTrack().isNonnull() ) muonTrack = mu2.globalTrack().get();
+      else if ( mu2.outerTrack().isNonnull()  ) muonTrack = mu2.outerTrack().get();
+      if (!muonTrack) continue;
+
+      TLorentzVector mu2tlv;
+      mu2tlv.SetPtEtaPhiM(mu2.pt(), mu2.eta(), mu2.phi(), 0.105658);
+      auto invMass = (mu1tlv+mu2tlv).M();
+      if (abs(invMass-3.096) < 0.05 || // jpsi
+          abs(invMass-9.460) < 0.05 || // upsilon
+          abs(invMass-91.187) < 0.5) // zboson
+            massInRegion = true;
+  }
+  return massInRegion;
 }
 
 void SliceTestEfficiencyAnalysis::beginJob(){}
